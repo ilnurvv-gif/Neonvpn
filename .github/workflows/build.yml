@@ -1,0 +1,56 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.14.3
+
+      - name: Build release APK
+        run: |
+          set -o pipefail
+          gradle :app:assembleRelease --stacktrace --no-daemon 2>&1 | tee build.log
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/release/app-release.apk NeonVPN.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Neon VPN 1.0.${{ github.run_number }}
+          body: Сборка ${{ github.run_number }}. Скачайте NeonVPN.apk и установите на телефон.
+          files: NeonVPN.apk
+
+      - name: Save build log to build-log branch
+        if: always()
+        run: |
+          echo "run=${{ github.run_number }} status=${{ job.status }} sha=${{ github.sha }}" > status.txt
+          mkdir -p /tmp/log && cp status.txt /tmp/log/ && (cp build.log /tmp/log/ 2>/dev/null || true)
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git checkout --orphan build-log
+          git rm -rf . > /dev/null 2>&1 || true
+          cp /tmp/log/* .
+          git add status.txt build.log 2>/dev/null || git add status.txt
+          git commit -m "Build log ${{ github.run_number }}"
+          git push -f origin build-log
