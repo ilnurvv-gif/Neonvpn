@@ -38,7 +38,8 @@ object TunnelStore {
     }
 
     /** Validates the config and stores it. Throws with a readable message if it is invalid. */
-    fun add(ctx: Context, name: String, confText: String): TunnelEntry {
+    fun add(ctx: Context, name: String, rawConf: String): TunnelEntry {
+        val confText = sanitize(rawConf)
         parse(confText)
         val id = "t" + System.currentTimeMillis().toString(36)
         file(ctx, id).writeText(confText)
@@ -66,6 +67,34 @@ object TunnelStore {
     private fun parse(text: String): Config = try {
         Config.parse(text.byteInputStream())
     } catch (e: Exception) {
-        throw IllegalArgumentException("Конфиг повреждён: ${e.message ?: e.javaClass.simpleName}")
+        val detail = e.message ?: e.cause?.message ?: e.javaClass.simpleName
+        throw IllegalArgumentException("Ошибка в конфиге: $detail")
     }
+
+    private val intKeys = setOf(
+        "listenport", "mtu", "jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "persistentkeepalive",
+    )
+
+    /**
+     * Drops lines the tunnel library can't read: empty values, unreplaced "$PLACEHOLDER"
+     * templates from Amnezia keys, and numeric options that aren't plain integers.
+     */
+    fun sanitize(text: String): String = text
+        .replace("\r\n", "\n")
+        .lines()
+        .filter { line ->
+            val trimmed = line.trim()
+            if (trimmed.isEmpty() || trimmed.startsWith("[") || trimmed.startsWith("#")) return@filter true
+            val eq = trimmed.indexOf('=')
+            if (eq <= 0) return@filter true
+            val key = trimmed.substring(0, eq).trim().lowercase()
+            val value = trimmed.substring(eq + 1).substringBefore('#').trim()
+            when {
+                value.isEmpty() -> false
+                value.startsWith("$") -> false
+                key in intKeys -> value.toIntOrNull() != null
+                else -> true
+            }
+        }
+        .joinToString("\n")
 }
