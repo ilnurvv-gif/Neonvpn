@@ -1,6 +1,7 @@
 package com.neonvpn.app
 
 import android.content.Context
+import org.amnezia.awg.config.BadConfigException
 import org.amnezia.awg.config.Config
 import org.json.JSONArray
 import org.json.JSONObject
@@ -66,10 +67,22 @@ object TunnelStore {
 
     private fun parse(text: String): Config = try {
         Config.parse(text.byteInputStream())
+    } catch (e: BadConfigException) {
+        val where = listOf(e.section.getName(), e.location.getName()).filter { it.isNotBlank() }.joinToString(" → ")
+        val what = e.text?.toString()?.takeIf { it.isNotBlank() }?.let { " «${it.take(40)}»" } ?: ""
+        val cause = e.cause?.message?.let { " ($it)" } ?: ""
+        throw IllegalArgumentException("Ошибка в конфиге: $where, ${e.reason}$what$cause")
     } catch (e: Exception) {
         val detail = e.message ?: e.cause?.message ?: e.javaClass.simpleName
         throw IllegalArgumentException("Ошибка в конфиге: $detail")
     }
+
+    private val interfaceKeys = setOf(
+        "address", "dns", "listenport", "mtu", "privatekey",
+        "jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "h1", "h2", "h3", "h4",
+        "i1", "i2", "i3", "i4", "i5", "excludedapplications", "includedapplications",
+    )
+    private val peerKeys = setOf("allowedips", "endpoint", "persistentkeepalive", "presharedkey", "publickey")
 
     private val intKeys = setOf(
         "listenport", "mtu", "jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "persistentkeepalive",
@@ -79,22 +92,37 @@ object TunnelStore {
      * Drops lines the tunnel library can't read: empty values, unreplaced "$PLACEHOLDER"
      * templates from Amnezia keys, and numeric options that aren't plain integers.
      */
-    fun sanitize(text: String): String = text
-        .replace("\r\n", "\n")
-        .lines()
-        .filter { line ->
-            val trimmed = line.trim()
-            if (trimmed.isEmpty() || trimmed.startsWith("[") || trimmed.startsWith("#")) return@filter true
-            val eq = trimmed.indexOf('=')
-            if (eq <= 0) return@filter true
-            val key = trimmed.substring(0, eq).trim().lowercase()
-            val value = trimmed.substring(eq + 1).substringBefore('#').trim()
-            when {
-                value.isEmpty() -> false
-                value.startsWith("$") -> false
-                key in intKeys -> value.toIntOrNull() != null
-                else -> true
+    fun sanitize(text: String): String {
+        var section = ""
+        return text
+            .replace("\r\n", "\n")
+            .replace('\r', '\n')
+            .lines()
+            .filter { line ->
+                val trimmed = line.trim()
+                if (trimmed.isEmpty()) return@filter true
+                if (trimmed.startsWith("#") || trimmed.startsWith(";")) return@filter false
+                if (trimmed.startsWith("[")) {
+                    section = trimmed.trim('[', ']', ' ').lowercase()
+                    return@filter section == "interface" || section == "peer"
+                }
+                val eq = trimmed.indexOf('=')
+                if (eq <= 0) return@filter false
+                val key = trimmed.substring(0, eq).trim().lowercase()
+                val value = trimmed.substring(eq + 1).trim()
+                val known = when (section) {
+                    "interface" -> key in interfaceKeys
+                    "peer" -> key in peerKeys
+                    else -> false
+                }
+                when {
+                    !known -> false
+                    value.isEmpty() -> false
+                    value.startsWith("$") -> false
+                    key in intKeys -> value.toIntOrNull() != null
+                    else -> true
+                }
             }
-        }
-        .joinToString("\n")
+            .joinToString("\n")
+    }
 }
