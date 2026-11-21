@@ -30,8 +30,6 @@ object VpnController {
                 markOff()
             }
         }
-        override fun isIpv4ResolutionPreferred(): Boolean = true
-        override fun isMetered(): Boolean = false
     }
 
     private fun markOff() {

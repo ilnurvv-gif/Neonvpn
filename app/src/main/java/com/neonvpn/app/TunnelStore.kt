@@ -81,12 +81,12 @@ object TunnelStore {
         "address", "dns", "listenport", "mtu", "privatekey",
         "jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "h1", "h2", "h3", "h4",
         "i1", "i2", "i3", "i4", "i5", "excludedapplications", "includedapplications",
+        "headerprotectionkey", "contentpaddingaddition", "rekeyaftertime", "rekeytimeout",
+        "rejectaftertime", "keepalivetimeout", "maxhandshakeattempts", "randomtrailers", "disablecookies",
     )
     private val peerKeys = setOf("allowedips", "endpoint", "persistentkeepalive", "presharedkey", "publickey")
 
-    private val intKeys = setOf(
-        "listenport", "mtu", "jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "persistentkeepalive",
-    )
+    private val intKeys = setOf("listenport", "mtu", "jc", "jmin", "jmax", "s1", "s2", "s3", "s4")
 
     /**
      * Drops lines the tunnel library can't read: empty values, unreplaced "$PLACEHOLDER"

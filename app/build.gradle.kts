@@ -61,7 +61,11 @@ kotlin {
 }
 
 dependencies {
-    implementation("com.zaneschepke:amneziawg-android:2.3.7")
+    // Official AmneziaWG tunnel library (supports AWG 2: header protection, random trailers, ranges).
+    // Built from source in CI and dropped into app/libs, see .github/workflows/build.yml
+    implementation(files("libs/awg-tunnel.aar"))
+    implementation("androidx.annotation:annotation:1.7.1")
+    implementation("androidx.collection:collection:1.4.0")
 
     implementation("androidx.core:core-ktx:1.16.0")
     implementation("androidx.activity:activity-compose:1.10.1")

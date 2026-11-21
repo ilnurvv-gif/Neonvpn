@@ -23,10 +23,29 @@ jobs:
         with:
           gradle-version: 8.14.3
 
+      - name: Checkout AmneziaWG library
+        uses: actions/checkout@v4
+        with:
+          repository: amnezia-vpn/amneziawg-android
+          ref: ff15093bf3856fea0947923474870b86efb682f0
+          path: awg-src
+          submodules: recursive
+
+      - name: Build AmneziaWG tunnel library
+        env:
+          ANDROID_PACKAGE_NAME: com.neonvpn.app
+        run: |
+          set -o pipefail
+          cd awg-src
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace :tunnel:assembleRelease 2>&1 | tee ../build.log
+          mkdir -p ../app/libs
+          cp tunnel/build/outputs/aar/tunnel-release.aar ../app/libs/awg-tunnel.aar
+
       - name: Build release APK
         run: |
           set -o pipefail
-          gradle :app:assembleRelease --stacktrace --no-daemon 2>&1 | tee build.log
+          gradle :app:assembleRelease --stacktrace --no-daemon 2>&1 | tee -a build.log
 
       - name: Rename APK
         run: cp app/build/outputs/apk/release/app-release.apk NeonVPN.apk
@@ -47,7 +66,7 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git checkout --orphan build-log
-          git rm -rf . > /dev/null 2>&1 || true
+          git rm -rf --cached . > /dev/null 2>&1 || true
           cp /tmp/log/* .
           git add status.txt build.log 2>/dev/null || git add status.txt
           git commit -m "Build log ${{ github.run_number }}"
